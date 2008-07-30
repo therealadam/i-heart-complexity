@@ -24,26 +24,46 @@ ActiveRecord::Schema.define do
     t.string :name, :surname
     t.timestamps
   end
+  
+  create_table :line_items do |t|
+    t.integer :cost
+    t.references :order
+    t.timestamps
+  end
 end
 
 class Order < ActiveRecord::Base
   belongs_to :customer
+  has_many :line_items
 end
 
 class Customer < ActiveRecord::Base
   has_many :orders
 end
 
+class LineItem < ActiveRecord::Base
+  belongs_to :order
+end
+
 class TestOrders < Test::Unit::TestCase
   
   context "An order" do
-    should "have a customer" do
-      order = Order.new
-      customer = Customer.new(:name => 'Bob', :surname => 'Smith')
-      assert_nothing_raised { order.customer = customer }
+    setup do
+      @order = Order.new
     end
     
-    should_eventually "have one or more line items"
+    should "have a customer" do
+      customer = Customer.new(:name => 'Bob', :surname => 'Smith')
+      assert_nothing_raised { @order.customer = customer }
+    end
+    
+    should "have one or more line items" do
+      assert_nothing_raised do
+        @order.line_items = [LineItem.new(:cost => 100), 
+                             LineItem.new(:cost => 200)]
+      end
+    end
+    
     should_eventually "move from the initial to payment state"
     should_eventually "move from the payment to fulfillment state"
     should_eventually "move from the fulfillment state to the complete state"
