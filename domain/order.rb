@@ -1,5 +1,4 @@
-%w{rubygems active_record aasm 
-   test/unit Shoulda}.each { |l| require(l) }
+%w{rubygems active_record aasm test/unit Shoulda}.each { |l| require(l) }
 
 def database_name(db='test.db')
   File.join(File.dirname(__FILE__), db)
@@ -28,7 +27,12 @@ ActiveRecord::Schema.define do
   create_table :line_items do |t|
     t.integer :cost
     t.references :order
+    t.references :product
     t.timestamps
+  end
+  
+  create_table :products do |t|
+    t.string :name
   end
 end
 
