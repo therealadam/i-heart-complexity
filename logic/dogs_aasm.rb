@@ -1,4 +1,4 @@
-%w{rubygems test/unit Shoulda active_record}.each { |lib| require(lib) }
+%w{rubygems test/unit Shoulda active_record aasm}.each { |lib| require(lib) }
 
 def database_name(db='test.db')
   File.join(File.dirname(__FILE__), db)
@@ -15,7 +15,7 @@ ActiveRecord::Schema.define do
   create_table :dogs, :force => true do |t|
     t.string :name
     t.integer :age
-    t.integer :at_vet, :at_foster, :at_hospice, :at_forever_home
+    t.string :aasm_state
     t.timestamps
   end
   
@@ -39,26 +39,21 @@ class Dog < ActiveRecord::Base
   belongs_to :hospice_provider
   has_one :adoptive_parent
   
-  def rescued?
-    !at_vet? && !at_foster? && !at_hospice? && !adopted?
-  end
+  include AASM
   
-  def vetted?
-    at_vet? && !at_foster? && !at_hospice? && !adopted?
-  end
+  aasm_initial_state :sheltered
   
-  def fostered?
-    !at_vet? && at_foster? && !at_hospice? && !adopted?
-  end
+  aasm_state :sheltered
+  aasm_state :rescued
+  # aasm_state :vetted
+  # aasm_state :fostered
+  # aasm_state :hospiced
+  # aasm_state :adopted
   
-  def hospice?
-    !at_vet? && !at_foster? && at_hospice? && !adopted?
+  aasm_event :rescue do
+    transitions :to => :rescued, :from => [:sheltered]
   end
-  
-  def adopted?
-    !at_vet? && !at_foster? && !at_hospice && at_forever_home
-  end
-  
+
 end
 
 class Vetting < ActiveRecord::Base
@@ -85,6 +80,7 @@ class TestDog < Test::Unit::TestCase
   context "A dog" do
     setup do
       @dog = Dog.new(:name => 'Cooper', :age => 2)
+      @dog.rescue
     end
     
     context "that has just been rescued" do
@@ -110,11 +106,11 @@ class TestDog < Test::Unit::TestCase
         @dog.at_vet = true
       end
       
-      should "have veterinary information" do
+      should_eventually "have veterinary information" do
         assert_equal 1, @dog.vettings.length
       end
       
-      should "be vetted" do
+      should_eventually "be vetted" do
         assert @dog.vetted?
       end
       
@@ -127,11 +123,11 @@ class TestDog < Test::Unit::TestCase
         @dog.foster_parent = FosterParent.new(:name => 'Adam')
       end
       
-      should "belong to a foster home" do
+      should_eventually "belong to a foster home" do
         assert_not_nil @dog.foster_parent
       end
       
-      should "be at a foster home" do
+      should_eventually "be at a foster home" do
         assert @dog.at_foster?
       end
       
@@ -144,11 +140,11 @@ class TestDog < Test::Unit::TestCase
         @dog.hospice_provider = HospiceProvider.new(:name => 'Maggie')
       end
       
-      should "belong to a hospice home" do
+      should_eventually "belong to a hospice home" do
         assert_not_nil @dog.hospice_provider
       end
       
-      should "be at a hospice home" do
+      should_eventually "be at a hospice home" do
         assert @dog.at_hospice?
       end
       
@@ -161,11 +157,11 @@ class TestDog < Test::Unit::TestCase
         @dog.adoptive_parent = AdoptiveParent.new(:name => 'Marcel')
       end
       
-      should "have adopter information" do
+      should_eventually "have adopter information" do
         assert_not_nil @dog.adoptive_parent
       end
       
-      should "be adopted" do
+      should_eventually "be adopted" do
         assert @dog.adopted?
       end
     end
