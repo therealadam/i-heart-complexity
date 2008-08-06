@@ -45,13 +45,33 @@ class Dog < ActiveRecord::Base
   
   aasm_state :sheltered
   aasm_state :rescued
-  # aasm_state :vetted
-  # aasm_state :fostered
-  # aasm_state :hospiced
-  # aasm_state :adopted
+  aasm_state :vetted
+  aasm_state :fostered
+  aasm_state :hospiced
+  aasm_state :adopted
   
   aasm_event :rescue do
     transitions :to => :rescued, :from => [:sheltered]
+  end
+  
+  aasm_event :vet do
+    transitions :to => :vetted, :from => [:rescued, :fostered], 
+                :guard => lambda { |dog| dog.vettings.length > 0 }
+  end
+  
+  aasm_event :foster do
+    transitions :to => :fostered, :from => [:vetted, :hospiced, :adopted],
+                :guard => lambda { |dog| !dog.foster_parent.nil? }
+  end
+  
+  aasm_event :hospice do
+    transitions :to => :hospiced, :from => [:fostered],
+                :guard => lambda { |dog| !dog.hospice_provider.nil? }
+  end
+  
+  aasm_event :adopted do
+    transitions :to => :adopted, :from => [:fostered],
+                :guard => lambda { |dog| !dog.adoptive_parent.nil? }
   end
 
 end
@@ -80,10 +100,13 @@ class TestDog < Test::Unit::TestCase
   context "A dog" do
     setup do
       @dog = Dog.new(:name => 'Cooper', :age => 2)
-      @dog.rescue
+      
     end
     
     context "that has just been rescued" do
+      setup do
+        @dog.rescue
+      end
       
       should "have a name" do
         assert_equal 'Cooper', @dog.name
@@ -102,15 +125,23 @@ class TestDog < Test::Unit::TestCase
     context "that has been vetted" do
       
       setup do
+        @dog.rescue
         @dog.vettings << Vetting.new(:heartworms => false, :fixed => true)
-        @dog.at_vet = true
+        @dog.vet
       end
       
-      should_eventually "have veterinary information" do
+      should "have veterinary information" do
         assert_equal 1, @dog.vettings.length
       end
       
-      should_eventually "be vetted" do
+      should "not transition to vetted if no vetting information is provided" do
+        dog = Dog.new
+        dog.rescue
+        dog.vet
+        assert dog.rescued?
+      end
+      
+      should "be vetted" do
         assert @dog.vetted?
       end
       
@@ -119,16 +150,25 @@ class TestDog < Test::Unit::TestCase
     context "that is being fostered" do
       
       setup do
-        @dog.at_foster = true
+        @dog.rescue
+        @dog.vettings << Vetting.new(:heartworms => false, :fixed => true)
+        @dog.vet
         @dog.foster_parent = FosterParent.new(:name => 'Adam')
+        @dog.foster
       end
       
-      should_eventually "belong to a foster home" do
+      should "belong to a foster home" do
         assert_not_nil @dog.foster_parent
       end
       
-      should_eventually "be at a foster home" do
-        assert @dog.at_foster?
+      should "be at a foster home" do
+        assert @dog.fostered?
+      end
+      
+      should "not transition to fostered if no foster parent is provided" do
+        @dog.foster_parent = nil
+        @dog.vet
+        @dog.foster
       end
       
     end
@@ -136,16 +176,27 @@ class TestDog < Test::Unit::TestCase
     context "that is in hospice" do
       
       setup do
-        @dog.at_hospice = true
+        @dog.rescue
+        @dog.vettings << Vetting.new(:heartworms => false, :fixed => true)
+        @dog.vet
+        @dog.foster_parent = FosterParent.new(:name => 'Adam')
+        @dog.foster
         @dog.hospice_provider = HospiceProvider.new(:name => 'Maggie')
+        @dog.hospice
       end
       
-      should_eventually "belong to a hospice home" do
+      should "belong to a hospice home" do
         assert_not_nil @dog.hospice_provider
       end
       
-      should_eventually "be at a hospice home" do
-        assert @dog.at_hospice?
+      should "be at a hospice home" do
+        assert @dog.hospiced?
+      end
+      
+      should "not transition to hospice if hospice provider is empty" do
+        @dog.hospice_provider = nil
+        @dog.foster
+        @dog.hospice
       end
       
     end
@@ -153,16 +204,27 @@ class TestDog < Test::Unit::TestCase
     context "that has been adopted" do
       
       setup do
-        @dog.at_forever_home = true
+        @dog.rescue
+        @dog.vettings << Vetting.new(:heartworms => false, :fixed => true)
+        @dog.vet
+        @dog.foster_parent = FosterParent.new(:name => 'Adam')
+        @dog.foster
         @dog.adoptive_parent = AdoptiveParent.new(:name => 'Marcel')
+        @dog.adopted
       end
       
-      should_eventually "have adopter information" do
+      should "have adopter information" do
         assert_not_nil @dog.adoptive_parent
       end
       
-      should_eventually "be adopted" do
+      should "be adopted" do
         assert @dog.adopted?
+      end
+      
+      should "not transition to adopted if adoptive parent is empty" do
+        @dog.adoptive_parent = nil
+        @dog.foster
+        @dog.adopted
       end
     end
     
