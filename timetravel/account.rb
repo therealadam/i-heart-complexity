@@ -40,7 +40,6 @@ class TestAccount < Test::Unit::TestCase
                             :city => 'Everytown', 
                             :state => 'NY', 
                             :zip => '22000')
-      
     end
     
     should "save one revision" do
