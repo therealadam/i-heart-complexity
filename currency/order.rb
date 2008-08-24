@@ -13,8 +13,13 @@ File.unlink(database_name) if File.exists?(database_name)
 
 ActiveRecord::Schema.define do
   
+  create_table :customers, :force => true do |t|
+    t.string :name
+    t.string :currency
+  end
+  
   create_table :orders, :force => true do |t|
-    t.string :customer_name
+    t.references :customer
   end
   
   create_table :line_items, :force => true do |t|
@@ -30,7 +35,15 @@ ActiveRecord::Schema.define do
   end
 end
 
+class Customer < ActiveRecord::Base
+  has_many :orders
+  
+  validates_presence_of :name
+  validates_presence_of :currency
+end
+
 class Order < ActiveRecord::Base
+  belongs_to :customer
   has_many :line_items
   has_many :products, :through => :line_items
   
@@ -38,7 +51,8 @@ class Order < ActiveRecord::Base
   
   def amount
     # Note that products.inject(0) won't work because its _not_ Money.
-    (products.inject(0.to_money) { |sum, product| sum += product.price }).to_money
+    sum = products.inject(0.to_money) { |sum, product| sum += product.price }
+    (sum.currency == customer.currency) ? sum : sum.exchange_to(customer.currency)
   end
 end
 
@@ -58,14 +72,31 @@ class Product < ActiveRecord::Base
   end
 end
 
+class TestCustomer < Test::Unit::TestCase
+  should "require a customer name" do
+    assert !Customer.new(:currency => 'USD').valid?
+  end
+  
+  should "require a currency" do
+    assert !Customer.new(:name => 'Alexander Whammy').valid?
+  end
+end
+
 class TestOrder < Test::Unit::TestCase
-  should "require customer name" do
+  
+  def setup
+    setup_exchanges!
+    @customer = Customer.new(:name => 'Grover Lewis', :currency => 'USD')
+    @order = Order.new(:customer => @customer)
+  end
+  
+  should "require a customer" do
     assert !Order.new.valid?
   end
   
   context "An order with no line items" do
     setup do
-      @order = Order.new(:customer_name => 'Grover Lewis')
+      @order = Order.new(:customer => @customer)
     end
     
     should "have zero price" do
@@ -74,16 +105,55 @@ class TestOrder < Test::Unit::TestCase
   end
   
   context "An order with one line item" do
+    
     setup do
       @product = Product.create(:name => 'frobulator', :price => Money.us_dollar(10))
-      @order = Order.new(:customer_name => 'Grover Smith')
       @order.products << @product
     end
     
-    should "have the same amount as the price of its line item" do
+    should "have the same amount as the price of its product" do
       assert_equal @product.price, @order.amount
     end
+    
   end
+  
+  context "An order with multiple line items" do
+    
+    setup do
+      @frobulator = Product.create(:name => 'Frobulator', :price => Money.us_dollar(10))
+      @grokulator = Product.create(:name => 'Grokulator', :price => Money.us_dollar(100))
+      
+      @order = Order.new(:customer => @customer)
+      @order.products = [@frobulator, @grokulator]
+    end
+    
+    should 'sum the products in the order' do
+      assert_equal Money.new(110), @order.amount
+    end
+    
+  end
+  
+  context "a multi-national order" do
+    
+    setup do
+      @frobulator = Product.create(:name => 'Frobulator (US)', :price => Money.us_dollar(10))
+      @grokulator = Product.create(:name => 'Grokulator (EU)', :price => Money.euro(100))
+      
+      @order.products = [@frobulator, @grokulator]
+    end
+    
+    should "apply an exchange rate and present the amount in the customer's rate" do
+      assert_equal Money.new(113, 'USD'), @order.amount
+    end
+    
+  end
+  
+  def setup_exchanges!
+    Money.bank = VariableExchangeBank.new
+    Money.bank.add_rate('USD', 'EUR', 0.67648)
+    Money.bank.add_rate('EUR', 'USD', 1.47823)    
+  end
+  
 end
 
 class TestProduct < Test::Unit::TestCase
