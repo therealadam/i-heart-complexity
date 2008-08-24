@@ -15,8 +15,6 @@ ActiveRecord::Schema.define do
   
   create_table :orders, :force => true do |t|
     t.string :customer_name
-    t.integer :cents, :default => 0
-    t.string :currency, :default => 'USD'
   end
   
   create_table :line_items, :force => true do |t|
@@ -34,9 +32,14 @@ end
 
 class Order < ActiveRecord::Base
   has_many :line_items
-  composed_of :amount, :class_name => 'Money', :mapping => [%w(cents cents), %w(currency currency)]
+  has_many :products, :through => :line_items
   
   validates_presence_of :customer_name
+  
+  def amount
+    # Note that products.inject(0) won't work because its _not_ Money.
+    (products.inject(0.to_money) { |sum, product| sum += product.price }).to_money
+  end
 end
 
 class LineItem < ActiveRecord::Base
@@ -66,7 +69,19 @@ class TestOrder < Test::Unit::TestCase
     end
     
     should "have zero price" do
-      assert_equal @order.amount, Money.us_dollar(0)
+      assert_equal Money.us_dollar(0), @order.amount
+    end
+  end
+  
+  context "An order with one line item" do
+    setup do
+      @product = Product.create(:name => 'frobulator', :price => Money.us_dollar(10))
+      @order = Order.new(:customer_name => 'Grover Smith')
+      @order.products << @product
+    end
+    
+    should "have the same amount as the price of its line item" do
+      assert_equal @product.price, @order.amount
     end
   end
 end
