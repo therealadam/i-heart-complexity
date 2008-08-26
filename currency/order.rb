@@ -143,7 +143,7 @@ class TestOrder < Test::Unit::TestCase
     end
     
     should "apply an exchange rate and present the amount in the customer's rate" do
-      assert_equal Money.new(113, 'USD'), @order.amount
+      assert_equal Money.new(157, 'USD'), @order.amount
     end
     
   end
