@@ -15,7 +15,8 @@ ActiveRecord::Schema.define do
   create_table :dogs, :force => true do |t|
     t.string :name
     t.integer :age
-    t.integer :at_vet, :at_foster, :at_hospice, :at_forever_home
+    t.integer :at_vet, :at_foster, 
+              :at_hospice, :at_forever_home
     t.timestamps
   end
   
@@ -40,23 +41,28 @@ class Dog < ActiveRecord::Base
   has_one :adoptive_parent
   
   def rescued?
-    !at_vet? && !at_foster? && !at_hospice? && !adopted?
+    !at_vet? && !at_foster? && 
+    !at_hospice? && !adopted?
   end
   
   def vetted?
-    at_vet? && !at_foster? && !at_hospice? && !adopted?
+    at_vet? && !at_foster? && 
+    !at_hospice? && !adopted?
   end
-  
+
   def fostered?
-    !at_vet? && at_foster? && !at_hospice? && !adopted?
+    !at_vet? && at_foster? && 
+    !at_hospice? && !adopted?
   end
   
   def hospice?
-    !at_vet? && !at_foster? && at_hospice? && !adopted?
+    !at_vet? && !at_foster? && 
+    at_hospice? && !adopted?
   end
   
   def adopted?
-    !at_vet? && !at_foster? && !at_hospice && at_forever_home
+    !at_vet? && !at_foster? && 
+    !at_hospice && at_forever_home
   end
   
 end

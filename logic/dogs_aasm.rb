@@ -51,12 +51,16 @@ class Dog < ActiveRecord::Base
   aasm_state :adopted
   
   aasm_event :rescue do
-    transitions :to => :rescued, :from => [:sheltered]
+    transitions :to => :rescued, 
+                :from => [:sheltered]
   end
   
   aasm_event :vet do
-    transitions :to => :vetted, :from => [:rescued, :fostered], 
-                :guard => lambda { |dog| dog.vettings.length > 0 }
+    transitions :to => :vetted, 
+                :from => [:rescued, :fostered], 
+                :guard => lambda { |dog| 
+                  dog.vettings.length > 0
+                }
   end
   
   aasm_event :foster do
