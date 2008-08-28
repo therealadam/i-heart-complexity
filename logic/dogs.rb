@@ -112,7 +112,9 @@ class TestDog < Test::Unit::TestCase
     context "that has been vetted" do
       
       setup do
-        @dog.vettings << Vetting.new(:heartworms => false, :fixed => true)
+        vetting = Vetting.new(:heartworms => false, 
+                              :fixed => true)
+        @dog.vettings << vetting
         @dog.at_vet = true
       end
       
