@@ -54,7 +54,7 @@ class TestAccount < Test::Unit::TestCase
       assert_equal 2, @act.versions.length
     end
     
-    should_eventually "store access old revisions" do
+    should "access old revisions" do
       @act.street = '321 Elm'
       @act.city = 'Sometown'
       @act.save

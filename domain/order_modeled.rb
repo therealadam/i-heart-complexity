@@ -1,4 +1,4 @@
-%w{rubygems active_record aasm test/unit Shoulda}.each { |l| require(l) }
+%w{rubygems active_record test/unit Shoulda}.each { |l| require(l) }
 
 def database_name(db='test.db')
   File.join(File.dirname(__FILE__), db)

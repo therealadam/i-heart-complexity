@@ -1,4 +1,4 @@
-%w{rubygems test/unit shoulda active_record money}.each { |lib| require(lib) }
+%w{rubygems test/unit shoulda active_record money acts_as_versioned}.each { |lib| require(lib) }
 
 def database_name(db='test.db')
   File.join(File.dirname(__FILE__), db)
@@ -31,9 +31,18 @@ ActiveRecord::Schema.define do
   
   create_table :products, :force => true do |t|
     t.string :name
+    t.text :description
     t.integer :cents, :default => 0
     t.string :currency, :default => 'USD'
+    t.integer :version, :null => false
   end
+  
+  class Product < ActiveRecord::Base
+    acts_as_versioned
+  end
+  
+  Product.create_versioned_table
+  
 end
 
 class Customer < ActiveRecord::Base
@@ -70,6 +79,8 @@ class LineItem < ActiveRecord::Base
 end
 
 class Product < ActiveRecord::Base
+  acts_as_versioned
+  
   validates_presence_of :name
   composed_of :price, :class_name => 'Money', :mapping => [%w(cents cents), %w(currency currency)]
   
@@ -165,6 +176,7 @@ class TestOrder < Test::Unit::TestCase
 end
 
 class TestProduct < Test::Unit::TestCase
+  
   should "have a name" do
     assert !Product.new(:cents => 100, :currency => 'EUR').valid?
   end
@@ -172,6 +184,36 @@ class TestProduct < Test::Unit::TestCase
   should "have a price" do
     assert !Product.new(:name => 'Frobulator').valid?
   end
+  
+  context "A versioned product" do
+    
+    setup do
+      @product = Product.create(
+        :name => 'iPhone', 
+        :description => 'The phone with web apps!', 
+        :price => Money.new(599.99, 'USD'))
+    end
+    
+    should "save the current version of itself" do
+      assert_equal 1, @product.versions.length
+    end
+    
+    should "save the previous version of itself" do
+      @product.price = Money.new(499.99, 'USD')
+      @product.save!
+      
+      assert_equal 2, @product.versions.length
+    end
+    
+    should_eventually 'access data on previous versions of itself' do
+      @product.description = 'The phone with native apps!'
+      @product.save!
+      
+      previous_version = @product.versions.latest.previous
+      assert_equal 'The phone with web apps!', 
+                   previous_version.description
+    end
+    
+  end
+  
 end
-
-# Add a coupon-code thing or maybe some arbitrary way of splitting up orders?
