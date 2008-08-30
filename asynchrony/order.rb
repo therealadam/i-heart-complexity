@@ -30,7 +30,8 @@ ActiveRecord::Schema.define do
   end
   
   create_table :moderations, :force => true do |t|
-    
+    t.references :product
+    t.timestamps
   end
   
   create_table :products, :force => true do |t|
@@ -85,6 +86,10 @@ end
 class Product < ActiveRecord::Base
   acts_as_versioned
   
+  has_many :moderations
+  
+  after_create :create_moderation_entry
+  
   validates_presence_of :name
   composed_of :price, :class_name => 'Money', :mapping => [%w(cents cents), %w(currency currency)]
   
@@ -93,6 +98,13 @@ class Product < ActiveRecord::Base
   def price_greater_than_zero
     errors.add('cents', 'cannot be less than zero') unless cents > 0
   end
+  
+  private
+    
+    def create_moderation_entry
+      moderations.create!
+    end
+  
 end
 
 class Moderation < ActiveRecord::Base
