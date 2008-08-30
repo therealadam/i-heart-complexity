@@ -32,6 +32,7 @@ ActiveRecord::Schema.define do
   create_table :moderations, :force => true do |t|
     t.references :product
     t.string :aasm_state, :null => false
+    t.integer :version
     t.timestamps
   end
   
@@ -103,7 +104,7 @@ class Product < ActiveRecord::Base
   private
     
     def create_moderation_entry
-      moderations.create!
+      moderations.create!(:version => version)
     end
   
 end
@@ -249,7 +250,7 @@ end
 
 class TestModeration < Test::Unit::TestCase
   
-  context 'A new product' do
+  context 'A moderation for a new product' do
     
     setup do
       @product = Product.create!(
@@ -266,7 +267,9 @@ class TestModeration < Test::Unit::TestCase
       assert :unapproved, @product.moderations.first.pending?
     end
     
-    should_eventually 'belong to a specific product version'
+    should 'track the product version' do
+      assert_equal 1, @product.moderations.first.version
+    end
         
   end
   
