@@ -89,7 +89,11 @@ end
 class Product < ActiveRecord::Base
   acts_as_versioned
   
-  has_many :moderations
+  has_many :moderations do
+    def current
+      last
+    end
+  end
   
   after_create :create_moderation_entry
   
@@ -104,10 +108,6 @@ class Product < ActiveRecord::Base
   
   def display?
     display_version > 0
-  end
-  
-  def current_moderation
-    moderations.last
   end
   
   private
@@ -275,7 +275,7 @@ class TestProduct < Test::Unit::TestCase
     end
     
     should "provide an accessor for the current moderation" do
-      assert_equal @product.moderations.first, @product.current_moderation
+      assert_equal @product.moderations.first, @product.moderations.current
     end
     
   end
@@ -293,45 +293,60 @@ class TestModeration < Test::Unit::TestCase
         :price => Money.new(10_000_000_000, 'USD'))
     end
     
-    should 'create a new moderation entry' do
+    should_eventually 'create a new moderation entry' do
       assert_equal 1, Moderation.count
     end
     
     should 'have a pending moderation' do
-      assert @product.current_moderation.pending?
+      assert @product.moderations.current.pending?
     end
     
     should 'track the product version' do
-      assert_equal 1, @product.current_moderation.version
+      assert_equal 1, @product.moderations.current.version
     end
     
     should 'not display' do
       assert !@product.display?
     end
     
+    should 'appear in the moderation queue' do
+      assert_equal [@product.moderations.current], Moderation.pending
+    end
+    
     context "that is approved" do
       
       setup do
-        @product.current_moderation.approve!
+        @product.moderations.current.approve!
+      end
+      
+      teardown do
+        Product.delete_all
+        Moderation.delete_all
       end
       
       should 'move to approved status' do
-        assert @product.current_moderation.approved?
+        assert @product.moderations.current.approved?
       end
       
       should 'update the display version for the product' do
         # PWNED by no identity map
-        assert_equal @product.current_moderation.version, 
+        assert_equal @product.moderations.current.version, 
                      Product.find(@product.id).display_version
       end
+      
+      should 'not appear in the queue' do
+        assert_equal [], Moderation.pending
+      end
+      
+    end
+    
+    context 'that is rejected' do
       
     end
     
   end
   
-  context 'Approving a product' do
-    
-    should_eventually 'move the moderation entry off the queue'
+  context 'A moderation for an existing product' do
     
   end
   
