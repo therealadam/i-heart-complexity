@@ -1,4 +1,4 @@
-%w{rubygems test/unit shoulda active_record money acts_as_versioned}.each { |lib| require(lib) }
+%w{rubygems test/unit shoulda active_record money acts_as_versioned aasm}.each { |lib| require(lib) }
 
 def database_name(db='test.db')
   File.join(File.dirname(__FILE__), db)
@@ -31,6 +31,7 @@ ActiveRecord::Schema.define do
   
   create_table :moderations, :force => true do |t|
     t.references :product
+    t.string :aasm_state, :null => false
     t.timestamps
   end
   
@@ -109,6 +110,14 @@ end
 
 class Moderation < ActiveRecord::Base
   belongs_to :product
+  
+  include AASM
+  
+  aasm_initial_state :pending
+  
+  aasm_state :pending
+  aasm_state :approved
+  aasm_state :rejected
 end
 
 class TestCustomer < Test::Unit::TestCase
@@ -253,8 +262,8 @@ class TestModeration < Test::Unit::TestCase
       assert_equal 1, Moderation.count
     end
     
-    should_eventually 'have a pending moderation' do
-      assert_equal :unapproved, @product.moderation.status
+    should 'have a pending moderation' do
+      assert :unapproved, @product.moderations.first.pending?
     end
     
     should_eventually 'belong to a specific product version'
