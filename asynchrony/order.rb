@@ -42,6 +42,7 @@ ActiveRecord::Schema.define do
     t.integer :cents, :default => 0
     t.string :currency, :default => 'USD'
     t.integer :version, :null => false
+    t.integer :display_version, :default => 0
   end
   
   class Product < ActiveRecord::Base
@@ -101,6 +102,14 @@ class Product < ActiveRecord::Base
     errors.add('cents', 'cannot be less than zero') unless cents > 0
   end
   
+  def display?
+    display_version > 0
+  end
+  
+  def current_moderation
+    moderations.last
+  end
+  
   private
     
     def create_moderation_entry
@@ -119,6 +128,19 @@ class Moderation < ActiveRecord::Base
   aasm_state :pending
   aasm_state :approved
   aasm_state :rejected
+  
+  aasm_event :approve do
+    transitions :from => :pending,
+                :to => :approved,
+                :on_transition => :update_product_display_version
+  end
+  
+  private
+  
+    def update_product_display_version
+      product.display_version = version
+      product.save!
+    end
 end
 
 class TestCustomer < Test::Unit::TestCase
@@ -215,6 +237,14 @@ class TestProduct < Test::Unit::TestCase
     assert !Product.new(:name => 'Frobulator').valid?
   end
   
+  should "default display_version to 0" do
+    assert_equal 0, Product.new.display_version
+  end
+  
+  should "only display if display_version is greater than 0" do
+    assert !Product.new.display?
+  end
+  
   context "A versioned product" do
     
     setup do
@@ -235,13 +265,17 @@ class TestProduct < Test::Unit::TestCase
       assert_equal 2, @product.versions.length
     end
     
-    should_eventually 'access data on previous versions of itself' do
+    should 'access data on previous versions of itself' do
       @product.description = 'The phone with native apps!'
       @product.save!
       
       previous_version = @product.versions.latest.previous
       assert_equal 'The phone with web apps!', 
                    previous_version.description
+    end
+    
+    should "provide an accessor for the current moderation" do
+      assert_equal @product.moderations.first, @product.current_moderation
     end
     
   end
@@ -264,13 +298,35 @@ class TestModeration < Test::Unit::TestCase
     end
     
     should 'have a pending moderation' do
-      assert :unapproved, @product.moderations.first.pending?
+      assert @product.current_moderation.pending?
     end
     
     should 'track the product version' do
-      assert_equal 1, @product.moderations.first.version
+      assert_equal 1, @product.current_moderation.version
     end
-        
+    
+    should 'not display' do
+      assert !@product.display?
+    end
+    
+    context "that is approved" do
+      
+      setup do
+        @product.current_moderation.approve!
+      end
+      
+      should 'move to approved status' do
+        assert @product.current_moderation.approved?
+      end
+      
+      should 'update the display version for the product' do
+        # PWNED by no identity map
+        assert_equal @product.current_moderation.version, 
+                     Product.find(@product.id).display_version
+      end
+      
+    end
+    
   end
   
   context 'Approving a product' do
