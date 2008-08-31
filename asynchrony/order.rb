@@ -95,7 +95,7 @@ class Product < ActiveRecord::Base
     end
   end
   
-  after_create :create_moderation_entry
+  after_save :create_moderation_entry
   
   validates_presence_of :name
   composed_of :price, :class_name => 'Money', :mapping => [%w(cents cents), %w(currency currency)]
@@ -113,7 +113,7 @@ class Product < ActiveRecord::Base
   private
     
     def create_moderation_entry
-      moderations.create!(:version => version)
+      moderations.create!(:version => version) if save_version?
     end
   
 end
@@ -135,11 +135,16 @@ class Moderation < ActiveRecord::Base
                 :on_transition => :update_product_display_version
   end
   
+  aasm_event :reject do
+    transitions :from => :pending,
+                :to => :rejected
+  end
+  
   private
   
     def update_product_display_version
       product.display_version = version
-      product.save!
+      product.save_without_revision
     end
 end
 
@@ -284,7 +289,7 @@ end
 
 class TestModeration < Test::Unit::TestCase
   
-  context 'A moderation for a new product' do
+  context 'A moderation for a product' do
     
     setup do
       @product = Product.create!(
@@ -293,24 +298,33 @@ class TestModeration < Test::Unit::TestCase
         :price => Money.new(10_000_000_000, 'USD'))
     end
     
-    should_eventually 'create a new moderation entry' do
-      assert_equal 1, Moderation.count
+    teardown do
+      Product.delete_all
+      Moderation.delete_all
     end
     
-    should 'have a pending moderation' do
-      assert @product.moderations.current.pending?
-    end
-    
-    should 'track the product version' do
-      assert_equal 1, @product.moderations.current.version
-    end
-    
-    should 'not display' do
-      assert !@product.display?
-    end
-    
-    should 'appear in the moderation queue' do
-      assert_equal [@product.moderations.current], Moderation.pending
+    context "that is new" do
+      
+      should 'create a new moderation entry' do
+        assert_equal 1, Moderation.count
+      end
+      
+      should 'have a pending moderation' do
+        assert @product.moderations.current.pending?
+      end
+      
+      should 'track the product version' do
+        assert_equal 1, @product.moderations.current.version
+      end
+      
+      should 'not display' do
+        assert !@product.display?
+      end
+      
+      should 'appear in the moderation queue' do
+        assert_equal [@product.moderations.current], Moderation.pending
+      end
+      
     end
     
     context "that is approved" do
@@ -319,19 +333,14 @@ class TestModeration < Test::Unit::TestCase
         @product.moderations.current.approve!
       end
       
-      teardown do
-        Product.delete_all
-        Moderation.delete_all
-      end
-      
       should 'move to approved status' do
         assert @product.moderations.current.approved?
       end
       
       should 'update the display version for the product' do
-        # PWNED by no identity map
+        refind!
         assert_equal @product.moderations.current.version, 
-                     Product.find(@product.id).display_version
+                     @product.display_version
       end
       
       should 'not appear in the queue' do
@@ -342,12 +351,58 @@ class TestModeration < Test::Unit::TestCase
     
     context 'that is rejected' do
       
+      setup do
+        @product.moderations.current.reject!
+      end
+      
+      should "not appear in the moderation queue" do
+        assert_equal [], Moderation.pending
+      end
+      
+      should "not change the display version" do
+        assert_equal 0, @product.display_version
+      end
+      
+    end
+    
+    context "that has been edited" do
+      
+      setup do
+        @product.moderations.current.approve!
+        @product.update_attribute(
+          :description,
+          'The wide-body with no leg room' +
+          ' and horrible seats.')
+        refind!
+      end
+      
+      should "create a new moderation entry" do
+        assert_equal 1, @product.moderations.pending.length
+      end
+      
+      should "continue to display the old version" do
+        assert_equal 1, @product.display_version
+      end
+      
+      should "update the display version once approved" do
+        @product.moderations.current.approve!
+        refind!
+        assert_equal 2, @product.display_version
+      end
+      
+      should "not update the display version if rejected" do
+        @product.moderations.current.reject!
+        refind!
+        assert_equal 1, @product.display_version
+      end
+      
     end
     
   end
   
-  context 'A moderation for an existing product' do
-    
+  # Hack around the AR's lack of an identity map
+  def refind!
+    @product = Product.find(@product.id)
   end
   
 end
