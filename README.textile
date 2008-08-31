@@ -1,0 +1,13 @@
+h1. I &hearts; Complexity
+
+You'll probably want to check out my talk, also called "I Heart Complexity".
+
+These examples[1] started from the currency example and then evolved to add further sophistication. So you could follow the git log if you want, or read the examples in this order:
+
+* domain/order.rb
+* domain/orer_modeled.rb
+* currency/order.rb
+* timetravel/order.rb
+* asynchrony/order.rb
+
+fn1. With the exception of the dogs example
