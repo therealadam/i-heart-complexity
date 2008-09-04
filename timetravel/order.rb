@@ -37,6 +37,7 @@ ActiveRecord::Schema.define do
     t.integer :version, :null => false
   end
   
+  # In our migration...
   class Product < ActiveRecord::Base
     acts_as_versioned
   end
@@ -206,12 +207,14 @@ class TestProduct < Test::Unit::TestCase
     end
     
     should_eventually 'access data on previous versions of itself' do
-      @product.description = 'The phone with native apps!'
+      @product.description = 
+        'The phone with native apps!'
       @product.save!
       
-      previous_version = @product.versions.latest.previous
+      previous_version = 
+        @product.versions.latest.previous
       assert_equal 'The phone with web apps!', 
-                   previous_version.description
+        previous_version.description
     end
     
   end

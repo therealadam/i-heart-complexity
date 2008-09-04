@@ -39,6 +39,11 @@ end
 class Product < ActiveRecord::Base
 end
 
+class LineItem < ActiveRecord::Base
+  belongs_to :order
+  belongs_to :product
+end
+
 class OrderTest < Test::Unit::TestCase
   
   def setup

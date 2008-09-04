@@ -51,9 +51,10 @@ class Order < ActiveRecord::Base
   validates_presence_of :customer_name
   
   def amount
-    # Note that products.inject(0) won't work because its _not_ Money.
-    sum = products.inject(0.to_money) do |sum, product| 
-      sum += product.price
+    # Note that products.inject(0) 
+    # won't work because its _not_ Money.
+    sum = products.inject(0.to_money) do |sum, p| 
+      sum += p.price
     end
     
     if sum.currency == customer.currency
@@ -62,6 +63,7 @@ class Order < ActiveRecord::Base
       sum.exchange_to(customer.currency)
     end
   end
+  
 end
 
 class LineItem < ActiveRecord::Base
@@ -71,12 +73,18 @@ end
 
 class Product < ActiveRecord::Base
   validates_presence_of :name
-  composed_of :price, :class_name => 'Money', :mapping => [%w(cents cents), %w(currency currency)]
+  composed_of :price, 
+              :class_name => 'Money', 
+              :mapping => [%w(cents cents), 
+                           %w(currency currency)]
   
   validate :price_greater_than_zero
   
   def price_greater_than_zero
-    errors.add('cents', 'cannot be less than zero') unless cents > 0
+    unless cents > 0
+      errors.add('cents', 
+                 'cannot be less than zero') 
+    end
   end
 end
 
@@ -144,8 +152,12 @@ class TestOrder < Test::Unit::TestCase
   context "a multi-national order" do
     
     setup do
-      @frobulator = Product.create(:name => 'Frobulator (US)', :price => Money.us_dollar(10))
-      @grokulator = Product.create(:name => 'Grokulator (EU)', :price => Money.euro(100))
+      @frobulator = Product.create(
+        :name => 'Frobulator (US)', 
+        :price => Money.us_dollar(10))
+      @grokulator = Product.create(
+        :name => 'Grokulator (EU)', 
+        :price => Money.euro(100))
       
       @order.products = [@frobulator, @grokulator]
     end

@@ -132,7 +132,8 @@ class Moderation < ActiveRecord::Base
   aasm_event :approve do
     transitions :from => :pending,
                 :to => :approved,
-                :on_transition => :update_product_display_version
+                :on_transition => 
+                  :update_product_display_version
   end
   
   aasm_event :reject do
